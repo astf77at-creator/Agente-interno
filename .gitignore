@@ -1,0 +1,17 @@
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# SO / editor
+.DS_Store
+.idea/
+.vscode/
