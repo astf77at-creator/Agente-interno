@@ -64,6 +64,24 @@ class WhatsAppClient:
         resp.raise_for_status()
         return resp.json()["id"]
 
+    def download_media(self, media_id: str) -> tuple[bytes, str | None]:
+        """Descarga un medio entrante de WhatsApp por su media_id.
+
+        Son dos pasos: primero se pide la URL temporal del medio y luego se
+        descarga el binario (ambas llamadas requieren el token).
+        Devuelve (bytes, mime_type).
+        """
+        meta = httpx.get(
+            f"{self.base_url}/{media_id}", headers=self._headers, timeout=30
+        )
+        meta.raise_for_status()
+        info = meta.json()
+        url = info["url"]
+        mime = info.get("mime_type")
+        binary = httpx.get(url, headers=self._headers, timeout=60)
+        binary.raise_for_status()
+        return binary.content, mime
+
     def _post(self, path: str, json: dict) -> None:
         try:
             resp = httpx.post(
@@ -77,11 +95,16 @@ class WhatsAppClient:
             logger.exception("Error enviando mensaje a WhatsApp")
 
 
-def parse_incoming(payload: dict) -> dict | None:
-    """Extrae el primer mensaje de texto entrante del webhook.
+# Tipos de mensaje con contenido multimedia (traen un media id).
+_MEDIA_TYPES = {"image", "audio", "video", "sticker", "document"}
 
-    Devuelve {"from": <numero>, "text": <texto>, "name": <perfil>} o None
-    si el evento no es un mensaje de texto (p.ej. un status de entrega).
+
+def parse_incoming(payload: dict) -> dict | None:
+    """Extrae el primer mensaje entrante del webhook (de cualquier tipo).
+
+    Devuelve un dict con:
+      from, name, ts, type, text (si aplica), media_id, mime, caption, filename
+    o None si el evento no es un mensaje (p.ej. un status de entrega).
     """
     try:
         entry = payload["entry"][0]
@@ -90,14 +113,24 @@ def parse_incoming(payload: dict) -> dict | None:
         if not messages:
             return None
         msg = messages[0]
-        if msg.get("type") != "text":
-            return None
         contacts = change.get("contacts", [{}])
         name = contacts[0].get("profile", {}).get("name", "")
-        return {
-            "from": msg["from"],
-            "text": msg["text"]["body"],
-            "name": name,
-        }
+        mtype = msg.get("type", "unknown")
+        ts = int(msg.get("timestamp", 0)) or None
+
+        out: dict = {"from": msg["from"], "name": name, "type": mtype, "ts": ts}
+
+        if mtype == "text":
+            out["text"] = msg["text"]["body"]
+        elif mtype in _MEDIA_TYPES:
+            media = msg.get(mtype, {})
+            out["media_id"] = media.get("id")
+            out["mime"] = media.get("mime_type")
+            out["caption"] = media.get("caption", "")
+            out["filename"] = media.get("filename", "")
+        else:
+            # location, contacts, reaction, etc.: se registra como texto marcador.
+            out["text"] = f"[{mtype}]"
+        return out
     except (KeyError, IndexError, TypeError):
         return None

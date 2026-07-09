@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Chabelita · Conversaciones</title>
+<style>
+  :root{
+    --verde:#075e54; --verde2:#128c7e; --burbuja-in:#ffffff; --burbuja-out:#d9fdd3;
+    --fondo-chat:#efeae2; --panel:#f0f2f5; --texto:#111b21; --secundario:#667781;
+    --linea:#e9edef;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --burbuja-in:#202c33; --burbuja-out:#005c4b; --fondo-chat:#0b141a;
+      --panel:#111b21; --texto:#e9edef; --secundario:#8696a0; --linea:#222d34;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--panel);color:var(--texto);}
+  #app{display:flex;height:100dvh;overflow:hidden}
+  /* Lista de chats */
+  #lista{width:34%;max-width:420px;min-width:260px;border-right:1px solid var(--linea);
+    display:flex;flex-direction:column;background:var(--panel)}
+  #lista header,#chat header{background:var(--verde);color:#fff;padding:14px 16px;
+    font-weight:600;display:flex;align-items:center;gap:10px;flex:0 0 auto}
+  #chats{overflow-y:auto;flex:1}
+  .chat-item{display:flex;gap:12px;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--linea)}
+  .chat-item:hover,.chat-item.activo{background:rgba(0,0,0,.06)}
+  @media (prefers-color-scheme: dark){.chat-item:hover,.chat-item.activo{background:rgba(255,255,255,.06)}}
+  .avatar{width:44px;height:44px;border-radius:50%;background:var(--verde2);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto}
+  .chat-meta{flex:1;min-width:0}
+  .chat-nombre{font-weight:600;display:flex;justify-content:space-between;gap:8px}
+  .chat-nombre small{color:var(--secundario);font-weight:400;white-space:nowrap}
+  .chat-prev{color:var(--secundario);font-size:.9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Panel de chat */
+  #chat{flex:1;display:flex;flex-direction:column;background:var(--fondo-chat)}
+  #chat header{background:var(--verde);gap:12px}
+  #volver{display:none;background:none;border:0;color:#fff;font-size:22px;cursor:pointer;padding:0 4px}
+  #mensajes{flex:1;overflow-y:auto;padding:14px 8% 18px;display:flex;flex-direction:column;gap:4px}
+  .msg{max-width:75%;padding:6px 9px 8px;border-radius:8px;position:relative;
+    box-shadow:0 1px .5px rgba(0,0,0,.13);word-wrap:break-word;white-space:pre-wrap}
+  .msg.in{align-self:flex-start;background:var(--burbuja-in);border-top-left-radius:0}
+  .msg.out{align-self:flex-end;background:var(--burbuja-out);border-top-right-radius:0}
+  .msg .hora{display:block;text-align:right;font-size:.68em;color:var(--secundario);margin-top:2px}
+  .msg img,.msg video{max-width:100%;border-radius:6px;display:block}
+  .msg audio{width:230px;max-width:100%}
+  .msg a.doc{display:inline-block;padding:8px 10px;background:rgba(0,0,0,.05);border-radius:6px;
+    color:var(--verde2);text-decoration:none}
+  #vacio{flex:1;display:flex;align-items:center;justify-content:center;color:var(--secundario);
+    text-align:center;padding:20px}
+  #irAbajo{position:absolute;right:16px;bottom:20px;width:42px;height:42px;border-radius:50%;
+    border:0;background:var(--verde2);color:#fff;font-size:20px;cursor:pointer;display:none;
+    box-shadow:0 2px 6px rgba(0,0,0,.3);z-index:5}
+  .tipo{font-size:.75em;color:var(--secundario);font-style:italic}
+  @media (max-width:720px){
+    #lista{width:100%;max-width:none}
+    #chat{position:absolute;inset:0;transform:translateX(100%);transition:transform .2s}
+    #app.abierto #chat{transform:translateX(0)}
+    #volver{display:block}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="lista">
+    <header>💬 Conversaciones · Chabelita</header>
+    <div id="chats"></div>
+  </section>
+  <section id="chat">
+    <header>
+      <button id="volver" title="Volver">‹</button>
+      <div class="avatar" id="chatAvatar" style="display:none"></div>
+      <div id="chatTitulo">Selecciona una conversación</div>
+    </header>
+    <div id="mensajes"><div id="vacio">Elige un chat de la izquierda para ver la conversación.</div></div>
+    <button id="irAbajo" title="Ir al último mensaje">▾</button>
+  </section>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const chatsEl = $('#chats'), msgsEl = $('#mensajes'), appEl = $('#app');
+let numeroActivo = null, ultimoId = 0, cercaDelFondo = true;
+
+function iniciales(nombre, numero){
+  const n = (nombre||'').trim();
+  if(n) return n.split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase();
+  return (numero||'?').slice(-2);
+}
+function hora(ts){
+  const d = new Date(ts*1000);
+  return d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+}
+function preview(t, tipo){
+  const iconos={image:'📷 Foto',video:'🎬 Video',audio:'🎤 Audio',sticker:'🩷 Sticker',document:'📄 Documento'};
+  if(tipo!=='text' && !t) return iconos[tipo]||('['+tipo+']');
+  return t||'';
+}
+function estaCercaDelFondo(){
+  return msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 120;
+}
+function irAlFondo(){ msgsEl.scrollTop = msgsEl.scrollHeight; $('#irAbajo').style.display='none'; }
+
+async function cargarChats(){
+  const r = await fetch('/api/conversaciones');
+  if(!r.ok) return;
+  const chats = await r.json();
+  chatsEl.innerHTML = '';
+  for(const c of chats){
+    const div = document.createElement('div');
+    div.className = 'chat-item' + (c.wa_number===numeroActivo?' activo':'');
+    div.onclick = () => abrirChat(c.wa_number, c.contact_name);
+    div.innerHTML = `
+      <div class="avatar">${iniciales(c.contact_name,c.wa_number)}</div>
+      <div class="chat-meta">
+        <div class="chat-nombre">${escapar(c.contact_name||c.wa_number)}<small>${hora(c.last_ts)}</small></div>
+        <div class="chat-prev">${escapar(preview(c.last_body,c.last_type))}</div>
+      </div>`;
+    chatsEl.appendChild(div);
+  }
+}
+
+async function abrirChat(numero, nombre){
+  numeroActivo = numero; ultimoId = 0;
+  appEl.classList.add('abierto');
+  $('#chatTitulo').textContent = nombre || numero;
+  const av = $('#chatAvatar'); av.style.display='flex'; av.textContent = iniciales(nombre,numero);
+  msgsEl.innerHTML = '';
+  await cargarMensajes(true);
+  cargarChats();
+}
+
+async function cargarMensajes(scrollForzado){
+  if(!numeroActivo) return;
+  const r = await fetch('/api/conversaciones/'+encodeURIComponent(numeroActivo));
+  if(!r.ok) return;
+  const msgs = await r.json();
+  const nuevos = msgs.filter(m => m.id > ultimoId);
+  if(!nuevos.length && !scrollForzado) return;
+  cercaDelFondo = estaCercaDelFondo();
+  for(const m of nuevos){ msgsEl.appendChild(burbuja(m)); ultimoId = Math.max(ultimoId, m.id); }
+  // Comportamiento tipo WhatsApp: baja al último mensaje automáticamente.
+  if(scrollForzado || cercaDelFondo) irAlFondo();
+  else $('#irAbajo').style.display='block';
+}
+
+function burbuja(m){
+  const div = document.createElement('div');
+  div.className = 'msg ' + (m.direction==='out'?'out':'in');
+  let media = '';
+  if(m.media_file){
+    const url = '/media/'+encodeURIComponent(m.media_file);
+    const mime = m.media_mime||'';
+    if(m.msg_type==='image'||m.msg_type==='sticker'||mime.startsWith('image/'))
+      media = `<img src="${url}" loading="lazy" alt="imagen">`;
+    else if(m.msg_type==='video'||mime.startsWith('video/'))
+      media = `<video src="${url}" controls></video>`;
+    else if(m.msg_type==='audio'||mime.startsWith('audio/'))
+      media = `<audio src="${url}" controls></audio>`;
+    else
+      media = `<a class="doc" href="${url}" target="_blank">📄 Descargar documento</a>`;
+  } else if(m.msg_type!=='text'){
+    media = `<span class="tipo">[${m.msg_type}]</span>`;
+  }
+  const texto = m.body ? `<div>${escapar(m.body)}</div>` : '';
+  div.innerHTML = media + texto + `<span class="hora">${hora(m.ts)}</span>`;
+  return div;
+}
+
+function escapar(s){
+  return (s||'').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+msgsEl.addEventListener('scroll', () => {
+  if(estaCercaDelFondo()) $('#irAbajo').style.display='none';
+});
+$('#irAbajo').onclick = irAlFondo;
+$('#volver').onclick = () => { appEl.classList.remove('abierto'); numeroActivo=null; };
+
+// Refresco automático: nuevos mensajes y lista de chats.
+cargarChats();
+setInterval(() => { cargarMensajes(false); cargarChats(); }, 4000);
+</script>
+</body>
+</html>

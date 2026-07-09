@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Datos del panel (base de datos y multimedia de conversaciones)
+data/
+
 # Python
 __pycache__/
 *.py[cod]

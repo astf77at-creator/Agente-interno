@@ -9,6 +9,8 @@ Agente conversacional para WhatsApp que atiende por la palabra clave
 - ➕ **Dar de alta productos** nuevos en Odoo desde WhatsApp.
 - 📊 **Responder consultas de negocio** en lenguaje natural sobre YOOHOO:
   artículos **más rentables**, **más vendidos** y de **lenta rotación**.
+- 💬 **Panel web de conversaciones** (estilo WhatsApp) con link permanente para
+  ver todos los chats, con fotos, videos, audios, stickers, emojis y documentos.
 
 Usa **Claude** (Anthropic) como cerebro del agente y la **WhatsApp Cloud API**
 de Meta para enviar y recibir mensajes.
@@ -126,6 +128,26 @@ automáticamente con el `challenge`.
 
 ---
 
+## Panel web de conversaciones 💬
+
+Un panel tipo WhatsApp para leer **todas las conversaciones** del bot desde el
+navegador (computadora o celular).
+
+- **Link permanente**: `https://tu-dominio/conversaciones` (tu propio servidor).
+- **Protegido** con usuario y contraseña (`PANEL_USER` / `PANEL_PASSWORD`).
+- Guarda **cada mensaje** entrante y saliente y muestra **todo lo que envían los
+  clientes**: fotos, videos, audios, notas de voz, stickers, emojis y documentos.
+- Comportamiento **igual a WhatsApp**: al abrir un chat baja al último mensaje y,
+  cuando llega uno nuevo, **regresa automáticamente al final**. Si subiste a leer
+  algo, aparece un botón ▾ para volver al último mensaje.
+- Se actualiza solo cada pocos segundos (no hay que recargar).
+
+Los mensajes se guardan en `DATA_DIR` (por defecto `./data`): una base de datos
+SQLite (`conversaciones.db`) y los archivos multimedia en `data/media/`.
+
+> **Importante**: el link es de **tu servidor**, así que es permanente mientras
+> el servicio esté corriendo en tu VPS. Cambia `PANEL_PASSWORD` antes de exponerlo.
+
 ## Estructura del proyecto
 
 ```
@@ -136,6 +158,9 @@ app/
   odoo_client.py  Cliente de Odoo (productos, existencias, alta, analítica)
   agent.py        Agente Claude con herramientas + control de permisos
   sessions.py     Sesiones en memoria (ventana tras la palabra clave)
+  storage.py      Guardado de conversaciones y multimedia (SQLite)
+  static/
+    inbox.html    Panel web de conversaciones (estilo WhatsApp)
 tests/            Pruebas unitarias (lógica sin servicios externos)
 Dockerfile        Imagen lista para producción
 .env.example      Plantilla de configuración

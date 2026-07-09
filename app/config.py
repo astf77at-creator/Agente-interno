@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     # Marca de la empresa, usada en respuestas del agente.
     brand_name: str = "YOOHOO"
 
+    # --- Panel web de conversaciones ---
+    # Carpeta donde se guardan la base de datos y los archivos multimedia.
+    data_dir: str = "./data"
+    # Credenciales para entrar al panel /conversaciones (cámbialas!).
+    panel_user: str = "admin"
+    panel_password: str = "cambia_esta_clave"
+
     @property
     def worker_set(self) -> set[str]:
         return {n.strip() for n in self.worker_numbers.split(",") if n.strip()}
