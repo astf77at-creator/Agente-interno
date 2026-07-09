@@ -27,17 +27,26 @@ TOOL_BUSCAR = {
     "description": (
         "Busca productos/modelos en el catálogo de Odoo por nombre o código. "
         "Devuelve precio de venta, existencia disponible e identificadores. "
-        "Úsala SIEMPRE que el cliente pida ver un producto, modelo, su precio o "
-        "si hay stock. IMPORTANTE: las FOTOS de cada modelo encontrado se envían "
-        "automáticamente al usuario ANTES de tu texto (tomadas de Odoo, aunque no "
-        "estén publicadas en la web). No describas las imágenes; solo confirma "
-        "brevemente lo que se encontró e invita a elegir."
+        "Úsala SIEMPRE que el cliente pida ver un producto o modelo. NO hace falta "
+        "que haya existencia para mostrarlo: se envían las FOTOS de cada modelo "
+        "encontrado automáticamente ANTES de tu texto (tomadas de Odoo, aunque no "
+        "estén publicadas en la web ni tengan stock). No describas las imágenes; "
+        "solo confirma brevemente lo que se encontró e invita a elegir. La "
+        "existencia solo se muestra si el usuario la pide (usa incluir_existencia)."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "texto": {"type": "string", "description": "Nombre o código a buscar"},
-            "limite": {"type": "integer", "description": "Máx. resultados (def. 5)"},
+            "limite": {"type": "integer", "description": "Máx. resultados (def. 8)"},
+            "incluir_existencia": {
+                "type": "boolean",
+                "description": (
+                    "Ponlo en true SOLO si el usuario pregunta por existencia, "
+                    "stock, disponibilidad o cuántos hay. Si no lo pide, déjalo en "
+                    "false: se muestran las fotos sin mencionar existencia."
+                ),
+            },
         },
         "required": ["texto"],
     },
@@ -130,7 +139,9 @@ def _system_prompt(brand: str, is_worker: bool) -> str:
         "Cuando el usuario pida un producto o modelo, lo primero que debe ver son "
         "las FOTOS: el sistema las envía automáticamente antes de tu mensaje, así "
         "que tu texto debe ser corto (p. ej. cuántos modelos encontraste y una "
-        "invitación a elegir), sin repetir descripciones de las imágenes. "
+        "invitación a elegir), sin repetir descripciones de las imágenes. No hace "
+        "falta que haya existencia para mostrar un producto; solo menciona la "
+        "existencia si el cliente la pide. "
         f"{rol} "
         "Cuando muestres listas, usa viñetas cortas. Si una herramienta falla o no "
         "hay datos, dilo con naturalidad y sugiere una alternativa. Antes de dar de "
@@ -251,9 +262,11 @@ class ChabelitaAgent:
 
     def _buscar(self, args: dict) -> tuple[str, list[dict]]:
         productos = self.odoo.buscar_productos(args["texto"], args.get("limite", 8))
+        incluir_exist = bool(args.get("incluir_existencia"))
         # Envía la foto de CADA modelo que coincida (tomada de Odoo, aunque no
-        # esté publicado en la web). Las imágenes se mandan primero; el pie de
-        # foto lleva precio y existencia para que el cliente lo vea de una vez.
+        # esté publicado en la web ni tenga stock). Las imágenes se mandan
+        # primero; el pie de foto lleva el nombre y el precio. La existencia solo
+        # se incluye si el usuario la pidió (incluir_existencia).
         imgs_map = self.odoo.get_products_images([p["id"] for p in productos])
         images: list[dict] = []
         for p in productos:
@@ -265,20 +278,21 @@ class ChabelitaAgent:
                 caption += f" ({p['default_code']})"
             if p.get("list_price") is not None:
                 caption += f"\n💲 Precio: ${p['list_price']}"
-            if p.get("qty_available") is not None:
+            if incluir_exist and p.get("qty_available") is not None:
                 caption += f" · 📦 Existencia: {p['qty_available']:g}"
             images.append({"image_b64": b64, "caption": caption})
 
-        # No exponemos standard_price (costo) en el texto que ve el modelo
-        # para clientes; el system prompt ya lo restringe, pero limpiamos aquí.
-        limpio = [
-            {
+        # No exponemos standard_price (costo) al modelo. La existencia solo se
+        # incluye si el usuario la pidió, para no mencionarla cuando no aplica.
+        limpio = []
+        for p in productos:
+            item = {
                 "nombre": p["name"],
                 "codigo": p.get("default_code"),
                 "precio": p.get("list_price"),
-                "existencia": p.get("qty_available"),
                 "tiene_foto": p["id"] in imgs_map,
             }
-            for p in productos
-        ]
+            if incluir_exist:
+                item["existencia"] = p.get("qty_available")
+            limpio.append(item)
         return (json.dumps(limpio, ensure_ascii=False), images)

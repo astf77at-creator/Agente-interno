@@ -5,7 +5,8 @@ Agente conversacional para WhatsApp que atiende por la palabra clave
 
 - 🔎 **Consultar productos**: al pedir un modelo, envía **primero las fotos** de
   cada producto que coincida (tomadas de Odoo, **aunque no estén publicadas en la
-  web**) con precio y existencia en el pie de foto, y luego un texto corto.
+  web ni tengan existencia**), con nombre y precio en el pie de foto, y luego un
+  texto corto. La **existencia solo se muestra si el cliente la pide**.
 - ➕ **Dar de alta productos** nuevos en Odoo desde WhatsApp.
 - 📊 **Responder consultas de negocio** en lenguaje natural sobre YOOHOO:
   artículos **más rentables**, **más vendidos** y de **lenta rotación**.
