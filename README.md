@@ -135,6 +135,8 @@ Un panel tipo WhatsApp para leer **todas las conversaciones** del bot desde el
 navegador (computadora o celular).
 
 - **Link permanente**: `https://tu-dominio/conversaciones` (tu propio servidor).
+- **Solo conversaciones con CLIENTES**: los números en `WORKER_NUMBERS`
+  (trabajadores) **no aparecen** en el panel.
 - **Protegido** con usuario y contraseña (`PANEL_USER` / `PANEL_PASSWORD`).
 - Guarda **cada mensaje** entrante y saliente y muestra **todo lo que envían los
   clientes**: fotos, videos, audios, notas de voz, stickers, emojis y documentos.

@@ -186,11 +186,16 @@ def panel(_: str = Depends(_auth)) -> HTMLResponse:
 
 @app.get("/api/conversaciones")
 def api_conversaciones(_: str = Depends(_auth)) -> list[dict]:
-    return storage.conversations()
+    # El panel muestra SOLO conversaciones con clientes: se ocultan los
+    # números de trabajadores (WORKER_NUMBERS).
+    workers = settings.worker_set
+    return [c for c in storage.conversations() if c["wa_number"] not in workers]
 
 
 @app.get("/api/conversaciones/{numero}")
 def api_thread(numero: str, _: str = Depends(_auth)) -> list[dict]:
+    if numero in settings.worker_set:
+        return []  # No se exponen las conversaciones con trabajadores.
     return storage.thread(numero)
 
 
