@@ -95,6 +95,20 @@ class OdooClient:
             return rows[0]["image_1920"]
         return None
 
+    def get_products_images(self, product_ids: list[int]) -> dict[int, str]:
+        """Devuelve {product_id: imagen_base64} para varios productos.
+
+        Lee `image_1920` (la imagen del backend de Odoo), que existe aunque el
+        producto NO esté publicado en la página web. Odoo devuelve la imagen de
+        la variante o, si no tiene, la de la plantilla del producto.
+        """
+        if not product_ids:
+            return {}
+        rows = self.execute(
+            "product.product", "read", product_ids, fields=["image_1920"]
+        )
+        return {r["id"]: r["image_1920"] for r in rows if r.get("image_1920")}
+
     def alta_producto(
         self,
         nombre: str,

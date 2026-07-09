@@ -33,7 +33,8 @@ class Settings(BaseSettings):
 
     # --- Lógica del agente ---
     # Palabra clave para "despertar" al bot (sin acentos, en minúsculas).
-    wake_word: str = "chabelita"
+    # Se usa la raíz "chabel" para reconocer tanto "Chabela" como "Chabelita".
+    wake_word: str = "chabel"
     # Números (con código de país, sin +) autorizados como TRABAJADORES.
     # Pueden dar de alta productos y ver analítica de rentabilidad/rotación.
     # Separados por comas. ej. "5215512345678,5215587654321"

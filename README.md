@@ -3,7 +3,9 @@
 Agente conversacional para WhatsApp que atiende por la palabra clave
 **"oye Chabelita"** y se conecta a tu **Odoo** para:
 
-- 🔎 **Consultar productos**: precio, existencias e imagen (lo que ya hacía).
+- 🔎 **Consultar productos**: al pedir un modelo, envía **primero las fotos** de
+  cada producto que coincida (tomadas de Odoo, **aunque no estén publicadas en la
+  web**) con precio y existencia en el pie de foto, y luego un texto corto.
 - ➕ **Dar de alta productos** nuevos en Odoo desde WhatsApp.
 - 📊 **Responder consultas de negocio** en lenguaje natural sobre YOOHOO:
   artículos **más rentables**, **más vendidos** y de **lenta rotación**.
@@ -33,9 +35,12 @@ WhatsApp ──▶ POST /webhook ──▶ ¿"oye Chabelita" o sesión activa?
                           Respuesta + imagen ──▶ WhatsApp
 ```
 
-- El bot **solo responde** si el mensaje contiene la palabra clave (`chabelita`,
-  sin importar mayúsculas/acentos) **o** si hay una conversación activa (15 min
-  por defecto). Así no contesta a todo en grupos.
+- El bot **solo responde** si el mensaje contiene la palabra clave (raíz
+  `chabel`, que reconoce **"Chabela"** y **"Chabelita"** sin importar
+  mayúsculas/acentos) **o** si hay una conversación activa (15 min por defecto).
+  Así no contesta a todo en grupos.
+- Al pedir un producto/modelo, **lo primero que ve el usuario son las fotos**
+  de cada modelo que coincide (una imagen por producto), y después un texto breve.
 - **Permisos**: dar de alta productos y ver analítica (rentabilidad, rotación)
   está reservado a **números de trabajadores** (`WORKER_NUMBERS`). Los clientes
   solo ven productos, precios y existencias; nunca costos ni márgenes.

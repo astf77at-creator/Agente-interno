@@ -25,9 +25,13 @@ logger = logging.getLogger(__name__)
 TOOL_BUSCAR = {
     "name": "buscar_producto",
     "description": (
-        "Busca productos en el catálogo de Odoo por nombre o código. "
+        "Busca productos/modelos en el catálogo de Odoo por nombre o código. "
         "Devuelve precio de venta, existencia disponible e identificadores. "
-        "Úsala cuando el cliente pregunte por un producto, su precio o si hay stock."
+        "Úsala SIEMPRE que el cliente pida ver un producto, modelo, su precio o "
+        "si hay stock. IMPORTANTE: las FOTOS de cada modelo encontrado se envían "
+        "automáticamente al usuario ANTES de tu texto (tomadas de Odoo, aunque no "
+        "estén publicadas en la web). No describas las imágenes; solo confirma "
+        "brevemente lo que se encontró e invita a elegir."
     ),
     "input_schema": {
         "type": "object",
@@ -123,6 +127,10 @@ def _system_prompt(brand: str, is_worker: bool) -> str:
         f"Eres Chabelita, la asistente de WhatsApp de {brand}. Hablas en español "
         "de forma cercana, breve y clara (es para WhatsApp). Usas los datos reales "
         f"de Odoo a través de tus herramientas; nunca inventes precios o existencias. "
+        "Cuando el usuario pida un producto o modelo, lo primero que debe ver son "
+        "las FOTOS: el sistema las envía automáticamente antes de tu mensaje, así "
+        "que tu texto debe ser corto (p. ej. cuántos modelos encontraste y una "
+        "invitación a elegir), sin repetir descripciones de las imágenes. "
         f"{rol} "
         "Cuando muestres listas, usa viñetas cortas. Si una herramienta falla o no "
         "hay datos, dilo con naturalidad y sugiere una alternativa. Antes de dar de "
@@ -242,15 +250,25 @@ class ChabelitaAgent:
         return (f"Herramienta desconocida: {name}", [])
 
     def _buscar(self, args: dict) -> tuple[str, list[dict]]:
-        productos = self.odoo.buscar_productos(args["texto"], args.get("limite", 5))
+        productos = self.odoo.buscar_productos(args["texto"], args.get("limite", 8))
+        # Envía la foto de CADA modelo que coincida (tomada de Odoo, aunque no
+        # esté publicado en la web). Las imágenes se mandan primero; el pie de
+        # foto lleva precio y existencia para que el cliente lo vea de una vez.
+        imgs_map = self.odoo.get_products_images([p["id"] for p in productos])
         images: list[dict] = []
-        # Adjunta la imagen del primer resultado, si existe.
-        if productos:
-            img = self.odoo.get_product_image(productos[0]["id"])
-            if img:
-                images.append(
-                    {"image_b64": img, "caption": productos[0]["name"]}
-                )
+        for p in productos:
+            b64 = imgs_map.get(p["id"])
+            if not b64:
+                continue
+            caption = p["name"]
+            if p.get("default_code"):
+                caption += f" ({p['default_code']})"
+            if p.get("list_price") is not None:
+                caption += f"\n💲 Precio: ${p['list_price']}"
+            if p.get("qty_available") is not None:
+                caption += f" · 📦 Existencia: {p['qty_available']:g}"
+            images.append({"image_b64": b64, "caption": caption})
+
         # No exponemos standard_price (costo) en el texto que ve el modelo
         # para clientes; el system prompt ya lo restringe, pero limpiamos aquí.
         limpio = [
@@ -259,6 +277,7 @@ class ChabelitaAgent:
                 "codigo": p.get("default_code"),
                 "precio": p.get("list_price"),
                 "existencia": p.get("qty_available"),
+                "tiene_foto": p["id"] in imgs_map,
             }
             for p in productos
         ]
