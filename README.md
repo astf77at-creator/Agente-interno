@@ -61,6 +61,19 @@ WhatsApp ──▶ POST /webhook ──▶ ¿"oye Chabelita" o sesión activa?
 | Artículos más vendidos | ❌ | ✅ |
 | Artículos de lenta rotación | ❌ | ✅ |
 
+### Modos: asistente vs atención al cliente
+
+El trabajador puede cambiar el comportamiento del bot con dos comandos:
+
+- **"Oye Chabela"** → activa el **modo asistente**: el bot te ayuda con analítica,
+  alta de productos y consultas de negocio (solo para números de `WORKER_NUMBERS`).
+- **"Bye Chabela"** → cambia al **modo atención al cliente**: el bot vuelve a
+  atender productos, fotos y precios como con cualquier cliente.
+
+El modo es "pegajoso": se queda como lo dejaste hasta que lo vuelvas a cambiar.
+Un cliente normal que diga "Oye Chabela" **no** entra al modo asistente; siempre
+recibe atención al cliente.
+
 ### Ejemplos de conversación (trabajador)
 
 - "Oye Chabelita, ¿cuántas existencias hay del tenis modelo X?"

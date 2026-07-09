@@ -1,6 +1,6 @@
 """Pruebas unitarias de la lógica que no depende de servicios externos."""
 
-from app.sessions import SessionStore, normalizar
+from app.sessions import MODO_ASISTENTE, MODO_CLIENTE, SessionStore, normalizar
 
 
 def test_normalizar_quita_acentos_y_mayusculas():
@@ -27,6 +27,26 @@ def test_sesion_activa_tras_touch():
     assert store.is_active("521555") is True
     store.end("521555")
     assert store.is_active("521555") is False
+
+
+def test_modo_por_defecto_es_cliente_y_es_pegajoso():
+    store = SessionStore(ttl_minutes=15)
+    # Por defecto, cualquier número está en atención al cliente.
+    assert store.get_modo("521777") == MODO_CLIENTE
+    # "oye Chabela" -> asistente; se mantiene aunque expire la ventana.
+    store.set_modo("521777", MODO_ASISTENTE)
+    assert store.get_modo("521777") == MODO_ASISTENTE
+    # "bye Chabela" -> vuelve a atención al cliente.
+    store.set_modo("521777", MODO_CLIENTE)
+    assert store.get_modo("521777") == MODO_CLIENTE
+
+
+def test_deteccion_de_comandos_oye_y_bye():
+    # La lógica del webhook usa estas mismas comprobaciones sobre el texto normalizado.
+    oye = normalizar("Oye Chabela, ¿los más rentables?")
+    bye = normalizar("Bye Chabela")
+    assert "chabel" in oye and "bye" not in oye
+    assert "chabel" in bye and "bye" in bye
 
 
 def test_worker_set_parsea_numeros(monkeypatch):

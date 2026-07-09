@@ -29,7 +29,7 @@ from . import storage
 from .agent import ChabelitaAgent
 from .config import get_settings
 from .odoo_client import OdooClient
-from .sessions import SessionStore, normalizar
+from .sessions import MODO_ASISTENTE, MODO_CLIENTE, SessionStore, normalizar
 from .whatsapp import WhatsAppClient, parse_incoming
 
 logging.basicConfig(level=logging.INFO)
@@ -140,21 +140,50 @@ def _ingest_and_maybe_reply(msg: dict) -> None:
     if msg["type"] != "text":
         return
     text = msg["text"]
-    is_worker = sender in settings.worker_set
+    norm = normalizar(text)
+    es_trabajador = sender in settings.worker_set
+    tiene_clave = settings.wake_word in norm  # "chabel" -> Chabela / Chabelita
+
+    # --- Comandos de cambio de modo ---
+    # "bye Chabela"  -> modo ATENCIÓN AL CLIENTE
+    # "oye Chabela"  -> modo ASISTENTE (solo trabajadores; el cliente solo despierta)
+    es_despedida = tiene_clave and ("bye" in norm or "adios" in norm)
+    if es_despedida:
+        sessions.set_modo(sender, MODO_CLIENTE)
+        sessions.touch(sender)
+        aviso = "👋 Listo, cambié al modo *atención al cliente*."
+        wa.send_text(sender, aviso)
+        storage.add_message(sender, "out", "text", body=aviso)
+        return
+
     despierto = sessions.is_active(sender)
-    if not despierto and settings.wake_word not in normalizar(text):
+    if not despierto and not tiene_clave:
         return
     sessions.touch(sender)
 
+    # Al saludar con la palabra clave se fija el modo: los trabajadores entran a
+    # modo asistente; los clientes siempre quedan en modo atención al cliente.
+    modo_previo = sessions.get_modo(sender)
+    if tiene_clave:
+        sessions.set_modo(sender, MODO_ASISTENTE if es_trabajador else MODO_CLIENTE)
+    modo = sessions.get_modo(sender)
+    modo_asistente = modo == MODO_ASISTENTE and es_trabajador
+
+    # Aviso corto solo cuando el modo cambia a asistente.
+    prefijo = ""
+    if modo_asistente and modo_previo != MODO_ASISTENTE:
+        prefijo = "🤖 Modo *asistente* activado.\n\n"
+
     try:
         agent = _build_agent()
-        respuesta, imagenes = agent.run(text, is_worker=is_worker)
+        respuesta, imagenes = agent.run(text, is_worker=modo_asistente)
     except Exception:  # noqa: BLE001
         logger.exception("Error procesando mensaje de %s", sender)
         err = "Uy, tuve un problema técnico. Inténtalo de nuevo en un momento. 🙏"
         wa.send_text(sender, err)
         storage.add_message(sender, "out", "text", body=err)
         return
+    respuesta = prefijo + (respuesta or "")
 
     # 3) Enviar y guardar la respuesta (fotos primero, luego texto).
     for img in imagenes:

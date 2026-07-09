@@ -18,10 +18,18 @@ def normalizar(texto: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
+# Modos de operación por número.
+MODO_ASISTENTE = "asistente"  # "oye Chabela": ayuda al trabajador (analítica, alta)
+MODO_CLIENTE = "cliente"  # "bye Chabela": atención al cliente (productos/fotos)
+
+
 class SessionStore:
     def __init__(self, ttl_minutes: int):
         self.ttl = ttl_minutes * 60
         self._active: dict[str, float] = {}
+        # El modo es "pegajoso": se mantiene hasta que el usuario lo cambie
+        # explícitamente ("oye Chabela" / "bye Chabela"), sin caducar.
+        self._modo: dict[str, str] = {}
 
     def is_active(self, sender: str) -> bool:
         exp = self._active.get(sender)
@@ -37,6 +45,12 @@ class SessionStore:
 
     def end(self, sender: str) -> None:
         self._active.pop(sender, None)
+
+    def get_modo(self, sender: str) -> str:
+        return self._modo.get(sender, MODO_CLIENTE)
+
+    def set_modo(self, sender: str, modo: str) -> None:
+        self._modo[sender] = modo
 
     @staticmethod
     def _now() -> float:
